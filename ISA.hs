@@ -11,6 +11,7 @@ module ISA (
 import Data.Bits
 import Data.Word
 import Data.Array
+import Data.Int
 
 type Word12 = Word16
 
@@ -28,7 +29,7 @@ data MU0_ParsedInstruction = LDA Word12
 newtype MU0_Instruction = MU0_Instruction Word16 deriving (Show)
 
 data MU0_Register = MU0_Register { pc :: Word12,
-                                   acc :: Word16
+                                   acc :: Int32 
                                  } deriving(Show)
 
 newtype MU0_Memory = MU0_Memory (Array Word12 Word16) deriving (Show)
@@ -66,13 +67,13 @@ mu0_decode (MU0_Instruction x)
           operand = x .&. 0x0FFF 
 
 mu0_execute :: MU0_ParsedInstruction -> Maybe (MU0_State -> MU0_State)
-mu0_execute (LDA op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = (getMU0_Memory $ memory $ st) ! op })})
-mu0_execute (STO op) = Just $ mu0_step . \st -> (st {memory = MU0_Memory ((getMU0_Memory $ memory $ st) // [(op, acc $ register $ st)])})
-mu0_execute (ADD op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = (acc $ register $ st) + (getMU0_Memory $ memory $ st) ! op})})
-mu0_execute (SUB op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = (acc $ register $ st) - (getMU0_Memory $ memory $ st) ! op})})
-mu0_execute (JMP op) = Just $ mu0_step . \st -> (st {register = ((register st) {pc = op})})
-mu0_execute (JGE op) = Just $ mu0_step . \st -> if (acc $ register $ st) >= 0 then (st {register = ((register st) {pc = op})}) else st
-mu0_execute (JNE op) = Just $ mu0_step . \st -> if (acc $ register $ st) /= 0 then (st {register = ((register st) {pc = op})}) else st
+mu0_execute (LDA op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = fromIntegral $ (getMU0_Memory $ memory $ st) ! op })})
+mu0_execute (STO op) = Just $ mu0_step . \st -> (st {memory = MU0_Memory ((getMU0_Memory $ memory $ st) // [(op, fromIntegral $ acc $ register $ st)])})
+mu0_execute (ADD op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = (acc $ register $ st) + (fromIntegral $ (getMU0_Memory $ memory $ st) ! op)})})
+mu0_execute (SUB op) = Just $ mu0_step . \st -> (st {register = ((register st) {acc = (acc $ register $ st) - (fromIntegral $ (getMU0_Memory $ memory $ st) ! op)})})
+mu0_execute (JMP op) = Just $  \st -> (st {register = ((register st) {pc = op})})
+mu0_execute (JGE op) = Just $  \st -> if (acc $ register $ st) >= 0 then (st {register = ((register st) {pc = op})}) else mu0_step st
+mu0_execute (JNE op) = Just $  \st -> if (acc $ register $ st) /= 0 then (st {register = ((register st) {pc = op})}) else mu0_step st
 mu0_execute STP = Nothing
 
 
@@ -105,7 +106,7 @@ mu0_getState ms
 readWordAt :: Int -> Word16 -> [Maybe MU0_State] -> Maybe Word16
 readWordAt x y lst = lst !! x >>= Just . (mu0Peek y)
 
-readaccAt :: Int -> [Maybe MU0_State] -> Maybe Word16
+readaccAt :: Int -> [Maybe MU0_State] -> Maybe Int32 
 readaccAt x lst = lst !! x >>= Just . acc . register
 
 readpcAt :: Int -> [Maybe MU0_State] -> Maybe Word16
